@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light">
+<title>Stark Mounting – Etiket</title>
+<!--
+  Etiket üzerindeki QR kod okutulunca açılan sayfa. Etiket bilgileri sunucuda değil, adresin "#" sonrasındaki
+  bölümünde durur (1, tür, ürün, proje, adet, malzeme; satır satır, UTF-8, base64url) ve etiket burada yeniden çizilir.
+  Çizim, Etiket Üretim uygulamasındaki kaynak\Cizim.cs ve kaynak\Qr.cs dosyalarının JavaScript karşılığıdır;
+  biri değişirse öbürü de değişmelidir.
+-->
+<style>
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: #e2e5ea; color: #1e2430; font: 16px/1.4 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 16px 16px 32px; }
+  header { display: flex; justify-content: center; padding: 6px 0 16px; }
+  header img { height: 30px; max-width: 100%; }
+  canvas { display: block; width: 100%; aspect-ratio: 2 / 1; background: #fff; border-radius: 3.75% / 7.5%;
+           border: 1px solid #969eaa; box-shadow: 0 6px 14px rgba(20, 30, 50, .18); }
+  dl { margin: 20px 0 0; background: #fff; border-radius: 12px; border: 1px solid #d0d5dd; overflow: hidden; }
+  dl div { padding: 12px 16px; border-top: 1px solid #e6e8ec; }
+  dl div:first-child { border-top: 0; }
+  dt { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: #687385; }
+  dd { margin: 2px 0 0; font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }
+  dd small { display: block; font-size: 14px; font-weight: 400; color: #687385; }
+  p { margin: 20px 4px 0; font-size: 13px; color: #687385; text-align: center; }
+  .bos { margin-top: 8px; padding: 28px 20px; background: #fff; border-radius: 12px; border: 1px solid #d0d5dd; text-align: center; }
+  .bos b { display: block; font-size: 18px; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <header><img id="logo" alt="Stark Mounting" src="data:image/png;base64,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"></header>
+  <div id="icerik"></div>
+</main>
+<script>
+(function () {
+  "use strict";
+
+  var TURLER = [["YARI MAMÜL", "KESİLMİŞ ÜRÜN"], ["MAMÜL", "BÜKÜLMÜŞ ÜRÜN"], ["FITTINGS", ""]];
+  var NOKTA_MM = 8, BUYUK_HARF = 0.716, SATIR_ARALIGI = 1.1, QR_SURUM = 8, QR_ALAN = 25 * NOKTA_MM;
+
+  // ------------------------------------------------------------------ adresteki veri
+
+  function coz() {
+    var h = location.hash.slice(1) || location.search.slice(1);
+    if (!h) return null;
+    try {
+      var b = h.replace(/-/g, "+").replace(/_/g, "/");
+      while (b.length % 4) b += "=";
+      var ham = atob(b), bayt = new Uint8Array(ham.length);
+      for (var i = 0; i < ham.length; i++) bayt[i] = ham.charCodeAt(i);
+      var a = new TextDecoder("utf-8").decode(bayt).split("\n");
+      var tur = parseInt(a[1], 10);
+      if (a[0] !== "1" || a.length < 5 || !(tur >= 0 && tur <= 2)) return null;
+      return { tur: tur, urun: a[2] || "", proje: a[3] || "", adet: a[4] || "", malzeme: tur === 2 ? "" : a[5] || "" };
+    } catch (hata) { return null; }
+  }
+
+  // ------------------------------------------------------------------ QR kod (8 bitlik kip; L ve M düzeyi)
+
+  var Qr = (function () {
+    var ECC = [
+      [-1, 7, 10, 15, 20, 26, 18, 20, 24, 30, 18, 20, 24, 26, 30, 22, 24, 28, 30, 28, 28, 28, 28, 30, 30, 26, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+      [-1, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28, 28, 26, 26, 26, 26, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28]];
+    var BLOK = [
+      [-1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 4, 4, 4, 4, 4, 6, 6, 6, 6, 7, 8, 8, 9, 9, 10, 12, 12, 12, 13, 14, 15, 16, 17, 18, 19, 19, 20, 21, 22, 24, 25],
+      [-1, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9, 9, 10, 10, 11, 13, 14, 16, 17, 17, 18, 20, 21, 23, 25, 26, 28, 29, 31, 33, 35, 37, 38, 40, 43, 45, 47, 49]];
+    var BICIM = [1, 0];   // L, M
+
+    function hamModul(v) {
+      var n = (16 * v + 128) * v + 64;
+      if (v >= 2) {
+        var hiza = Math.floor(v / 7) + 2;
+        n -= (25 * hiza - 10) * hiza - 55;
+        if (v >= 7) n -= 36;
+      }
+      return n;
+    }
+    function veriKod(v, e) { return Math.floor(hamModul(v) / 8) - ECC[e][v] * BLOK[e][v]; }
+    function gereken(uzunluk, e) {
+      for (var v = 1; v <= 40; v++) if (4 + (v < 10 ? 8 : 16) + uzunluk * 8 <= veriKod(v, e) * 8) return v;
+      return 0;
+    }
+    function carp(x, y) {
+      var z = 0;
+      for (var i = 7; i >= 0; i--) {
+        z = (z << 1) ^ ((z >>> 7) * 0x11D);
+        z ^= ((y >>> i) & 1) * x;
+      }
+      return z & 255;
+    }
+    function bolen(derece) {
+      var s = [], kok = 1, i, j;
+      for (i = 0; i < derece; i++) s.push(0);
+      s[derece - 1] = 1;
+      for (i = 0; i < derece; i++) {
+        for (j = 0; j < derece; j++) {
+          s[j] = carp(s[j], kok);
+          if (j + 1 < derece) s[j] ^= s[j + 1];
+        }
+        kok = carp(kok, 2);
+      }
+      return s;
+    }
+    function kalan(veri, bol) {
+      var s = bol.map(function () { return 0; });
+      veri.forEach(function (b) {
+        var carpan = b ^ s.shift();
+        s.push(0);
+        for (var i = 0; i < s.length; i++) s[i] ^= carp(bol[i], carpan);
+      });
+      return s;
+    }
+    function duzeltmeEkle(veri, v, e) {
+      var blok = BLOK[e][v], ecc = ECC[e][v], ham = Math.floor(hamModul(v) / 8);
+      var kisaBlok = blok - ham % blok, kisaBoy = Math.floor(ham / blok), bol = bolen(ecc), bloklar = [], i, j, k = 0;
+      for (i = 0; i < blok; i++) {
+        var d = veri.slice(k, k + kisaBoy - ecc + (i < kisaBlok ? 0 : 1));
+        k += d.length;
+        var duzeltme = kalan(d, bol);
+        if (i < kisaBlok) d.push(0);
+        bloklar.push(d.concat(duzeltme));
+      }
+      var sonuc = [];
+      for (i = 0; i <= kisaBoy; i++)
+        for (j = 0; j < blok; j++)
+          if (i !== kisaBoy - ecc || j >= kisaBlok) sonuc.push(bloklar[j][i]);
+      return sonuc;
+    }
+
+    function matris(v, e, kod) {
+      var boyut = v * 4 + 17, m = [], islev = [], x, y, i, j;
+      for (y = 0; y < boyut; y++) { m.push(new Array(boyut).fill(false)); islev.push(new Array(boyut).fill(false)); }
+      function isle(px, py, koyu) { m[py][px] = koyu; islev[py][px] = true; }
+      function bit(deger, n) { return ((deger >>> n) & 1) !== 0; }
+      function bulucu(bx, by) {
+        for (var dy = -4; dy <= 4; dy++)
+          for (var dx = -4; dx <= 4; dx++) {
+            var uzak = Math.max(Math.abs(dx), Math.abs(dy)), xx = bx + dx, yy = by + dy;
+            if (xx >= 0 && xx < boyut && yy >= 0 && yy < boyut) isle(xx, yy, uzak !== 2 && uzak !== 4);
+          }
+      }
+      function bicimYaz(maske) {
+        var veri = BICIM[e] << 3 | maske, kal = veri, n;
+        for (n = 0; n < 10; n++) kal = (kal << 1) ^ ((kal >>> 9) * 0x537);
+        var b = (veri << 10 | kal) ^ 0x5412;
+        for (n = 0; n <= 5; n++) isle(8, n, bit(b, n));
+        isle(8, 7, bit(b, 6)); isle(8, 8, bit(b, 7)); isle(7, 8, bit(b, 8));
+        for (n = 9; n < 15; n++) isle(14 - n, 8, bit(b, n));
+        for (n = 0; n < 8; n++) isle(boyut - 1 - n, 8, bit(b, n));
+        for (n = 8; n < 15; n++) isle(8, boyut - 15 + n, bit(b, n));
+        isle(8, boyut - 8, true);
+      }
+      function maskele(maske) {
+        for (var my = 0; my < boyut; my++)
+          for (var mx = 0; mx < boyut; mx++) {
+            if (islev[my][mx]) continue;
+            var cevir;
+            switch (maske) {
+              case 0: cevir = (mx + my) % 2 === 0; break;
+              case 1: cevir = my % 2 === 0; break;
+              case 2: cevir = mx % 3 === 0; break;
+              case 3: cevir = (mx + my) % 3 === 0; break;
+              case 4: cevir = (Math.floor(mx / 3) + Math.floor(my / 2)) % 2 === 0; break;
+              case 5: cevir = mx * my % 2 + mx * my % 3 === 0; break;
+              case 6: cevir = (mx * my % 2 + mx * my % 3) % 2 === 0; break;
+              default: cevir = ((mx + my) % 2 + mx * my % 3) % 2 === 0;
+            }
+            if (cevir) m[my][mx] = !m[my][mx];
+          }
+      }
+      function gecmiseEkle(kosu, g) {
+        if (g[0] === 0) kosu += boyut;
+        g.pop();
+        g.unshift(kosu);
+      }
+      function bulucuBenzeri(g) {
+        var n = g[1], cekirdek = n > 0 && g[2] === n && g[3] === n * 3 && g[4] === n && g[5] === n;
+        return (cekirdek && g[0] >= n * 4 && g[6] >= n ? 1 : 0) + (cekirdek && g[6] >= n * 4 && g[0] >= n ? 1 : 0);
+      }
+      function ceza() {
+        var c = 0, yon, a, b;
+        for (yon = 0; yon < 2; yon++)
+          for (a = 0; a < boyut; a++) {
+            var renk = false, kosu = 0, g = [0, 0, 0, 0, 0, 0, 0];
+            for (b = 0; b < boyut; b++) {
+              var hucre = yon === 0 ? m[a][b] : m[b][a];
+              if (hucre === renk) {
+                kosu++;
+                if (kosu === 5) c += 3; else if (kosu > 5) c++;
+              } else {
+                gecmiseEkle(kosu, g);
+                if (!renk) c += bulucuBenzeri(g) * 40;
+                renk = hucre;
+                kosu = 1;
+              }
+            }
+            if (renk) { gecmiseEkle(kosu, g); kosu = 0; }
+            gecmiseEkle(kosu + boyut, g);
+            c += bulucuBenzeri(g) * 40;
+          }
+        var koyu = 0;
+        for (a = 0; a < boyut; a++)
+          for (b = 0; b < boyut; b++) {
+            if (m[a][b]) koyu++;
+            if (a < boyut - 1 && b < boyut - 1 && m[a][b] === m[a][b + 1] && m[a][b] === m[a + 1][b] && m[a][b] === m[a + 1][b + 1]) c += 3;
+          }
+        var toplam = boyut * boyut;
+        return c + (Math.ceil(Math.abs(koyu * 20 - toplam * 10) / toplam) - 1) * 10;
+      }
+
+      // sabit desenler
+      for (i = 0; i < boyut; i++) { isle(6, i, i % 2 === 0); isle(i, 6, i % 2 === 0); }
+      bulucu(3, 3); bulucu(boyut - 4, 3); bulucu(3, boyut - 4);
+      var hiza = [];
+      if (v > 1) {
+        var n = Math.floor(v / 7) + 2, adim = v === 32 ? 26 : Math.floor((v * 4 + n * 2 + 1) / (n * 2 - 2)) * 2;
+        for (i = 0; i < n; i++) hiza.push(0);
+        hiza[0] = 6;
+        for (i = n - 1, j = boyut - 7; i >= 1; i--, j -= adim) hiza[i] = j;
+      }
+      for (i = 0; i < hiza.length; i++)
+        for (j = 0; j < hiza.length; j++) {
+          if ((i === 0 && j === 0) || (i === 0 && j === hiza.length - 1) || (i === hiza.length - 1 && j === 0)) continue;
+          for (y = -2; y <= 2; y++)
+            for (x = -2; x <= 2; x++) isle(hiza[i] + x, hiza[j] + y, Math.max(Math.abs(x), Math.abs(y)) !== 1);
+        }
+      bicimYaz(0);
+      if (v >= 7) {
+        var kal = v;
+        for (i = 0; i < 12; i++) kal = (kal << 1) ^ ((kal >>> 11) * 0x1F25);
+        var sb = v << 12 | kal;
+        for (i = 0; i < 18; i++) {
+          var p = boyut - 11 + i % 3, q = Math.floor(i / 3);
+          isle(p, q, bit(sb, i)); isle(q, p, bit(sb, i));
+        }
+      }
+
+      // kod sözcükleri
+      i = 0;
+      for (var sag = boyut - 1; sag >= 1; sag -= 2) {
+        if (sag === 6) sag = 5;
+        for (var dikey = 0; dikey < boyut; dikey++)
+          for (j = 0; j < 2; j++) {
+            x = sag - j;
+            y = ((sag + 1) & 2) === 0 ? boyut - 1 - dikey : dikey;
+            if (!islev[y][x] && i < kod.length * 8) {
+              m[y][x] = bit(kod[i >>> 3], 7 - (i & 7));
+              i++;
+            }
+          }
+      }
+
+      // en düşük cezalı maske
+      var enIyi = 0, enAz = Infinity;
+      for (i = 0; i < 8; i++) {
+        maskele(i); bicimYaz(i);
+        var c = ceza();
+        if (c < enAz) { enAz = c; enIyi = i; }
+        maskele(i);
+      }
+      maskele(enIyi); bicimYaz(enIyi);
+      return m;
+    }
+
+    // Uygulamadaki kuralla aynı: sürüm en az QR_SURUM; M düzeyine sığmıyorsa L.
+    function uret(metin) {
+      var veri = Array.prototype.slice.call(new TextEncoder().encode(metin));
+      var g = gereken(veri.length, 1), e = g > 0 && g <= QR_SURUM ? 1 : 0;
+      var v = gereken(veri.length, e);
+      if (v === 0) return null;
+      v = Math.max(v, QR_SURUM);
+      var kapasite = veriKod(v, e) * 8, bitler = [], i;
+      function ekle(deger, uzunluk) { for (var n = uzunluk - 1; n >= 0; n--) bitler.push((deger >>> n) & 1); }
+      ekle(4, 4);
+      ekle(veri.length, v < 10 ? 8 : 16);
+      veri.forEach(function (b) { ekle(b, 8); });
+      ekle(0, Math.min(4, kapasite - bitler.length));
+      ekle(0, (8 - bitler.length % 8) % 8);
+      for (var dolgu = 0xEC; bitler.length < kapasite; dolgu ^= 0xEC ^ 0x11) ekle(dolgu, 8);
+      var kod = [];
+      for (i = 0; i < bitler.length; i += 8) {
+        var b = 0;
+        for (var n = 0; n < 8; n++) b = b << 1 | bitler[i + n];
+        kod.push(b);
+      }
+      return matris(v, e, duzeltmeEkle(kod, v, e));
+    }
+
+    return { uret: uret };
+  })();
+
+  // ------------------------------------------------------------------ etiket çizimi (80 x 40 mm, 8 nokta/mm)
+
+  function ciz(tuval, e, logo, qrMetni) {
+    // k: yazıcı noktası başına piksel; ekran yoğunluğuna göre seçilir
+    var k = Math.max(2, Math.min(5, Math.ceil(tuval.clientWidth * (window.devicePixelRatio || 1) / 640)));
+    tuval.width = 640 * k;
+    tuval.height = 320 * k;
+    var g = tuval.getContext("2d");
+    function N(mm) { return Math.round(mm * NOKTA_MM) * k; }
+    function yazi(punto, kalin) { g.font = (kalin ? "bold " : "") + punto + "px Arial, Helvetica, 'Liberation Sans', sans-serif"; }
+    function genislik(s) { return g.measureText(s).width; }
+
+    function bol(metin, en, zorla) {
+      var satirlar = [], satir = "";
+      var sozcukler = metin.split(" ").filter(function (s) { return s.length > 0; });
+      for (var i = 0; i < sozcukler.length; i++) {
+        var kalan = sozcukler[i];
+        while (kalan.length > 0) {
+          var aday = satir.length === 0 ? kalan : satir + " " + kalan;
+          if (genislik(aday) <= en) { satir = aday; break; }
+          if (satir.length > 0) { satirlar.push(satir); satir = ""; continue; }
+          if (!zorla) return null;
+          var n = Math.max(1, kalan.length - 1);
+          while (n > 1 && genislik(kalan.substring(0, n)) > en) n--;
+          satirlar.push(kalan.substring(0, n));
+          kalan = kalan.substring(n);
+        }
+      }
+      if (satir.length > 0) satirlar.push(satir);
+      return satirlar;
+    }
+    // Metni kutuya sığan en büyük puntoda satırlara böler; en küçük puntoda da sığmazsa sonunu keser.
+    function sigdir(metin, en, boy, enBuyukMm, enKucukMm, enCokSatir) {
+      for (var punto = N(enBuyukMm); ; punto -= k) {
+        yazi(punto, true);
+        var son = punto <= N(enKucukMm), satirlar = bol(metin, en, son);
+        if (satirlar && satirlar.length === 0) satirlar.push("");
+        if (son && satirlar.length > enCokSatir) {
+          satirlar.length = enCokSatir;
+          var s = satirlar[enCokSatir - 1];
+          while (s.length > 1 && genislik(s + "…") > en) s = s.substring(0, s.length - 1);
+          satirlar[enCokSatir - 1] = s.replace(/\s+$/, "") + "…";
+        }
+        if (satirlar && satirlar.length <= enCokSatir && (son || (BUYUK_HARF + (satirlar.length - 1) * SATIR_ARALIGI) * punto <= boy))
+          return { punto: punto, satirlar: satirlar };
+      }
+    }
+    function blok(metin, x, y, en, boy, enBuyukMm, enKucukMm, enCokSatir, hiza) {
+      var s = sigdir(metin, en, boy, enBuyukMm, enKucukMm, enCokSatir);
+      var adim = SATIR_ARALIGI * s.punto, yukseklik = BUYUK_HARF * s.punto + (s.satirlar.length - 1) * adim;
+      var taban = y + Math.max(0, boy - yukseklik) * hiza + BUYUK_HARF * s.punto;
+      yazi(s.punto, true);
+      s.satirlar.forEach(function (satir) { g.fillText(satir, x, Math.round(taban)); taban += adim; });
+    }
+    function baslik(metin, x, ust) {
+      yazi(N(2.0), false);
+      g.fillText(metin, x, ust + Math.round(BUYUK_HARF * N(2.0)));
+    }
+
+    g.fillStyle = "#fff";
+    g.fillRect(0, 0, tuval.width, tuval.height);
+    g.textBaseline = "alphabetic";
+    g.lineJoin = "miter";
+
+    // üst bant: logo + tür kutusu
+    var ust = N(2), bant = N(7.5);
+    if (logo && logo.naturalWidth) {
+      var logoEn = N(40), logoBoy = Math.round(logoEn * logo.naturalHeight / logo.naturalWidth);
+      g.imageSmoothingQuality = "high";
+      g.drawImage(logo, N(2.5), ust + (bant - logoBoy) / 2, logoEn, logoBoy);
+    }
+    var kx = N(44.5), kEn = N(33), dolu = e.tur !== 0;
+    g.fillStyle = "#000";
+    g.fillRect(kx, ust, kEn, bant);
+    if (!dolu) { g.fillStyle = "#fff"; g.fillRect(kx + N(0.5), ust + N(0.5), kEn - 2 * N(0.5), bant - 2 * N(0.5)); }
+    var renk = dolu ? "#fff" : "#000";
+    g.fillStyle = renk;
+    g.strokeStyle = renk;
+
+    var bosluk = N(1.25), kenar = bant - 2 * bosluk, sx = kx + N(1.5), sy = ust + bosluk;
+    g.beginPath();
+    if (e.tur === 0) {          // düz sac
+      g.lineWidth = N(0.5);
+      g.moveTo(sx + kenar * 0.3, sy + kenar * 0.24); g.lineTo(sx + kenar, sy + kenar * 0.24);
+      g.lineTo(sx + kenar * 0.7, sy + kenar * 0.76); g.lineTo(sx, sy + kenar * 0.76);
+      g.closePath();
+    } else if (e.tur === 1) {   // U profil kesiti
+      g.lineWidth = N(0.75);
+      var a = N(0.375);
+      g.moveTo(sx + a, sy + kenar * 0.08); g.lineTo(sx + a, sy + kenar - a - kenar * 0.06);
+      g.lineTo(sx + kenar - a, sy + kenar - a - kenar * 0.06); g.lineTo(sx + kenar - a, sy + kenar * 0.08);
+    } else {                    // somun
+      g.lineWidth = N(0.625);
+      var mx = sx + kenar / 2, my = sy + kenar / 2, yaricap = kenar / 2 - N(0.25);
+      for (var i = 0; i < 6; i++) g[i ? "lineTo" : "moveTo"](mx + yaricap * Math.cos(i * Math.PI / 3), my + yaricap * Math.sin(i * Math.PI / 3));
+      g.closePath();
+      g.moveTo(mx + yaricap * 0.42, my);
+      g.arc(mx, my, yaricap * 0.42, 0, Math.PI * 2);
+    }
+    g.stroke();
+
+    var tx = sx + kenar + N(1.4), tEn = kx + kEn - N(1.2) - tx, ad = TURLER[e.tur][0], aciklama = TURLER[e.tur][1];
+    var buyuk = sigdir(ad, tEn, bant, aciklama ? 3.6 : 4.6, 2.0, 1);
+    if (!aciklama) {
+      yazi(buyuk.punto, true);
+      g.fillText(ad, tx, ust + Math.round((bant + BUYUK_HARF * buyuk.punto) / 2));
+    } else {
+      var alt = sigdir(aciklama, tEn, bant, 2.2, 1.5, 1);
+      var h1 = BUYUK_HARF * buyuk.punto, h2 = BUYUK_HARF * alt.punto, ara = N(1.0);
+      var y0 = ust + Math.round((bant - (h1 + ara + h2)) / 2 + N(0.15));
+      yazi(buyuk.punto, true);
+      g.fillText(ad, tx, y0 + Math.round(h1));
+      yazi(alt.punto, true);
+      g.fillText(aciklama, tx, y0 + Math.round(h1 + ara + h2));
+    }
+
+    g.fillStyle = "#000";
+    g.fillRect(N(2.5), N(10.5), N(75), N(0.375));
+
+    // QR
+    var qr = Qr.uret(qrMetni);
+    if (qr) {
+      var n = qr.length, modul = Math.max(1, Math.floor(QR_ALAN / n)) * k, boyut = n * modul;
+      var x0 = N(77.5) - boyut, yq = N(12.5) + (QR_ALAN * k - boyut) / 2;
+      for (var qy = 0; qy < n; qy++)
+        for (var qx = 0; qx < n; qx++)
+          if (qr[qy][qx]) g.fillRect(x0 + qx * modul, yq + qy * modul, modul, modul);
+    }
+
+    // alanlar
+    var sol = N(2.5), metinEn = N(47.5);
+    baslik("ÜRÜN ADI", sol, N(11.9));
+    blok(e.urun, sol, N(14.5), metinEn, N(8.6), 6.4, 2.6, 2, 0.3);
+    baslik("PROJE", sol, N(24.5));
+    blok(e.proje, sol, N(26.7), metinEn, N(2.75), 3.8, 2.2, 1, 1.0);
+    baslik("ADET", sol, N(31.2));
+    if (e.tur === 2) {
+      blok(e.adet, sol, N(33.25), metinEn, N(3.75), 5.2, 2.6, 1, 1.0);
+    } else {
+      blok(e.adet, sol, N(33.25), N(15.5), N(3.75), 4.8, 2.4, 1, 1.0);
+      baslik("MALZEME", N(19.5), N(31.2));
+      var m = sigdir(e.malzeme, N(30.5), N(4.7), 3.6, 2.1, 2);
+      var taban = m.satirlar.length === 1 ? N(37.0) : N(38.25) - Math.round(SATIR_ARALIGI * m.punto);
+      yazi(m.punto, true);
+      m.satirlar.forEach(function (satir) { g.fillText(satir, N(19.5), taban); taban += Math.round(SATIR_ARALIGI * m.punto); });
+    }
+  }
+
+  // ------------------------------------------------------------------ sayfa
+
+  function ekle(ust, etiket, sinif, metin) {
+    var el = document.createElement(etiket);
+    if (sinif) el.className = sinif;
+    if (metin !== undefined) el.textContent = metin;
+    ust.appendChild(el);
+    return el;
+  }
+
+  function goster() {
+    var icerik = document.getElementById("icerik"), e = coz();
+    icerik.textContent = "";
+    if (!e) {
+      var bos = ekle(icerik, "div", "bos");
+      ekle(bos, "b", "", "Etiket bilgisi bulunamadı");
+      ekle(bos, "span", "", "Bu sayfa, ürün etiketinin üzerindeki QR kod okutulduğunda etiketi gösterir.");
+      return;
+    }
+    document.title = (e.urun || "Etiket") + " – Stark Mounting";
+    var tuval = ekle(icerik, "canvas");
+    tuval.setAttribute("role", "img");
+    tuval.setAttribute("aria-label", TURLER[e.tur][0] + " etiketi: " + e.urun);
+
+    var liste = ekle(icerik, "dl");
+    function satir(ad, deger, ek) {
+      var d = ekle(liste, "div");
+      ekle(d, "dt", "", ad);
+      var dd = ekle(d, "dd", "", deger || "—");
+      if (ek) ekle(dd, "small", "", ek);
+    }
+    satir("ETİKET TÜRÜ", TURLER[e.tur][0], TURLER[e.tur][1]);
+    satir("ÜRÜN ADI", e.urun);
+    satir("PROJE", e.proje);
+    satir("ADET", e.adet);
+    if (e.tur !== 2) satir("MALZEME", e.malzeme);
+    ekle(icerik, "p", "", "Bu sayfa etiketin üzerindeki QR koddan açılmıştır; bilgiler etiketin basıldığı andaki hâlidir.");
+
+    var logo = document.getElementById("logo");
+    function yenidenCiz() { ciz(tuval, e, logo, location.href); }
+    if (logo.complete) yenidenCiz(); else logo.addEventListener("load", yenidenCiz);
+    window.addEventListener("resize", yenidenCiz);
+  }
+
+  window.addEventListener("hashchange", function () { location.reload(); });
+  goster();
+})();
+</script>
+</body>
+</html>
