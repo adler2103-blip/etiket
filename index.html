@@ -8,9 +8,12 @@
 <title>Stark Mounting – Etiket</title>
 <!--
   Etiket üzerindeki QR kod okutulunca açılan sayfa. Etiket bilgileri sunucuda değil, adresin "#" sonrasındaki
-  bölümünde durur (1, tür, ürün, proje, adet, malzeme; satır satır, UTF-8, base64url) ve etiket burada yeniden çizilir.
-  Çizim, Etiket Üretim uygulamasındaki kaynak\Cizim.cs ve kaynak\Qr.cs dosyalarının JavaScript karşılığıdır;
-  biri değişirse öbürü de değişmelidir.
+  bölümünde durur ve etiket burada yeniden çizilir:
+  - 80 x 40 ürün etiketi: 1, tür, ürün, proje, adet, malzeme; satır satır, UTF-8, base64url.
+  - 150 x 100 paket etiketi: 2, customer, checked by, specification, cost no, qty., wgt., size, track name,
+    production date, alt satır (boşsa varsayılan adres); "~" ile ayrılmış, boşluk "+", öbürleri %XX.
+  Çizim, Etiket Üretim uygulamasındaki kaynak\Cizim.cs, kaynak\PaketCizim.cs ve kaynak\Qr.cs dosyalarının
+  JavaScript karşılığıdır; biri değişirse öbürü de değişmelidir.
 -->
 <style>
   * { box-sizing: border-box; }
@@ -21,6 +24,7 @@
   header img { height: 30px; max-width: 100%; }
   canvas { display: block; width: 100%; aspect-ratio: 2 / 1; background: #fff; border-radius: 3.75% / 7.5%;
            border: 1px solid #969eaa; box-shadow: 0 6px 14px rgba(20, 30, 50, .18); }
+  canvas.paket { aspect-ratio: 3 / 2; border-radius: 2% / 3%; }
   dl { margin: 20px 0 0; background: #fff; border-radius: 12px; border: 1px solid #d0d5dd; overflow: hidden; }
   dl div { padding: 12px 16px; border-top: 1px solid #e6e8ec; }
   dl div:first-child { border-top: 0; }
@@ -43,12 +47,15 @@
 
   var TURLER = [["YARI MAMÜL", "KESİLMİŞ ÜRÜN"], ["MAMÜL", "BÜKÜLMÜŞ ÜRÜN"], ["FITTINGS", ""]];
   var NOKTA_MM = 8, BUYUK_HARF = 0.716, SATIR_ARALIGI = 1.1, QR_SURUM = 8, QR_ALAN = 25 * NOKTA_MM;
+  var PAKET_QR_SURUM = 12, PAKET_QR_ALAN = 26 * NOKTA_MM;
+  var VARSAYILAN_ADRES = "STARK-MOUNTİNG Yazıbaşı Mh. Yazıbaşı İzmir Cad.\nNo:31/1-2 Torbalı/İZMİR";
 
   // ------------------------------------------------------------------ adresteki veri
 
   function coz() {
     var h = location.hash.slice(1) || location.search.slice(1);
     if (!h) return null;
+    if (h.indexOf("~") >= 0) return paketCoz(h);   // base64url'de "~" yoktur
     try {
       var b = h.replace(/-/g, "+").replace(/_/g, "/");
       while (b.length % 4) b += "=";
@@ -60,6 +67,18 @@
       return { tur: tur, urun: a[2] || "", proje: a[3] || "", adet: a[4] || "", malzeme: tur === 2 ? "" : a[5] || "" };
     } catch (hata) { return null; }
   }
+
+  function paketCoz(h) {
+    try {
+      var a = h.split("~").map(function (s) { return decodeURIComponent(s.replace(/\+/g, " ")); });
+      if (a[0] !== "2" || a.length < 10) return null;
+      return { paket: true, musteri: a[1], kontrol: a[2], ozellik: a[3], costNo: a[4], adet: a[5], agirlik: a[6], olcu: a[7],
+               track: a[8], tarih: a[9], adres: a[10] || VARSAYILAN_ADRES };
+    } catch (hata) { return null; }
+  }
+
+  // Yalnızca sayı yazılmışsa birim eklenir: "947" -> "947 Kg".
+  function agirlikMetni(s) { return /[0-9]$/.test(s) ? s + " Kg" : s; }
 
   // ------------------------------------------------------------------ QR kod (8 bitlik kip; L ve M düzeyi)
 
@@ -268,13 +287,13 @@
       return m;
     }
 
-    // Uygulamadaki kuralla aynı: sürüm en az QR_SURUM; M düzeyine sığmıyorsa L.
-    function uret(metin) {
+    // Uygulamadaki kuralla aynı: sürüm en az enAzSurum; M düzeyine sığmıyorsa L.
+    function uret(metin, enAzSurum) {
       var veri = Array.prototype.slice.call(new TextEncoder().encode(metin));
-      var g = gereken(veri.length, 1), e = g > 0 && g <= QR_SURUM ? 1 : 0;
+      var g = gereken(veri.length, 1), e = g > 0 && g <= enAzSurum ? 1 : 0;
       var v = gereken(veri.length, e);
       if (v === 0) return null;
-      v = Math.max(v, QR_SURUM);
+      v = Math.max(v, enAzSurum);
       var kapasite = veriKod(v, e) * 8, bitler = [], i;
       function ekle(deger, uzunluk) { for (var n = uzunluk - 1; n >= 0; n--) bitler.push((deger >>> n) & 1); }
       ekle(4, 4);
@@ -415,7 +434,7 @@
     g.fillRect(N(2.5), N(10.5), N(75), N(0.375));
 
     // QR
-    var qr = Qr.uret(qrMetni);
+    var qr = Qr.uret(qrMetni, QR_SURUM);
     if (qr) {
       var n = qr.length, modul = Math.max(1, Math.floor(QR_ALAN / n)) * k, boyut = n * modul;
       var x0 = N(77.5) - boyut, yq = N(12.5) + (QR_ALAN * k - boyut) / 2;
@@ -443,6 +462,153 @@
     }
   }
 
+  // ------------------------------------------------------------------ paket etiketi çizimi (150 x 100 mm, 8 nokta/mm)
+
+  function cizPaket(tuval, e, qrMetni) {
+    var k = Math.max(2, Math.min(4, Math.ceil(tuval.clientWidth * (window.devicePixelRatio || 1) / 1200)));
+    tuval.width = 1200 * k;
+    tuval.height = 800 * k;
+    var g = tuval.getContext("2d");
+    var X = [2.5, 51, 102, 125, 147.5], Y = [33, 40.5, 51.25, 59.5, 70, 86, 97.5], AX = [2.5, 51, 87.5, 120];
+    var CIZGI = 0.375, YAN = 2, DIKEY = 1, BASLIK = 3.8, RAHAT = 3.0, EN_KUCUK = 1.75;
+    function N(mm) { return Math.round(mm * NOKTA_MM) * k; }
+    function yazi(punto, kalin) { g.font = (kalin ? "bold " : "") + punto + "px Arial, Helvetica, 'Liberation Sans', sans-serif"; }
+    function genislik(s) { return g.measureText(s).width; }
+
+    // "530B-531A-509A" -> "530B-", "531A-", "509A": satır tireden sonra da bölünebilir.
+    function parcalar(sozcuk) {
+      var p = [], bas = 0;
+      for (var i = 0; i < sozcuk.length - 1; i++) if (sozcuk[i] === "-") { p.push(sozcuk.substring(bas, i + 1)); bas = i + 1; }
+      p.push(sozcuk.substring(bas));
+      return p;
+    }
+    function bol(metin, en, zorla) {
+      var satirlar = [], satir = "";
+      var sozcukler = metin.split(" ").filter(function (s) { return s.length > 0; });
+      for (var i = 0; i < sozcukler.length; i++) {
+        var ayrac = " ", p = parcalar(sozcukler[i]);
+        for (var j = 0; j < p.length; j++) {
+          var kalan = p[j];
+          while (kalan.length > 0) {
+            var aday = satir.length === 0 ? kalan : satir + ayrac + kalan;
+            if (genislik(aday) <= en) { satir = aday; break; }
+            if (satir.length > 0) { satirlar.push(satir); satir = ""; continue; }
+            if (!zorla) return null;
+            var n = Math.max(1, kalan.length - 1);
+            while (n > 1 && genislik(kalan.substring(0, n)) > en) n--;
+            satirlar.push(kalan.substring(0, n));
+            kalan = kalan.substring(n);
+          }
+          ayrac = "";
+        }
+      }
+      if (satir.length > 0) satirlar.push(satir);
+      return satirlar;
+    }
+    function sigdir(metin, en, boy, enBuyukMm, enKucukMm, enCokSatir) {
+      for (var punto = N(enBuyukMm); ; punto -= k) {
+        yazi(punto, true);
+        var son = punto <= N(enKucukMm), satirlar = bol(metin, en, son);
+        if (satirlar && satirlar.length === 0) satirlar.push("");
+        if (son && satirlar.length > enCokSatir) {
+          satirlar.length = enCokSatir;
+          var s = satirlar[enCokSatir - 1];
+          while (s.length > 1 && genislik(s + "…") > en) s = s.substring(0, s.length - 1);
+          satirlar[enCokSatir - 1] = s.replace(/\s+$/, "") + "…";
+        }
+        if (satirlar && satirlar.length <= enCokSatir && (son || (BUYUK_HARF + (satirlar.length - 1) * SATIR_ARALIGI) * punto <= boy))
+          return { punto: punto, satirlar: satirlar };
+      }
+    }
+    function satirlariYaz(satirlar, punto, x, en, y, boy, ortala) {
+      var adim = SATIR_ARALIGI * punto, yukseklik = BUYUK_HARF * punto + (satirlar.length - 1) * adim;
+      var taban = y + Math.max(0, boy - yukseklik) / 2 + BUYUK_HARF * punto;
+      yazi(punto, true);
+      satirlar.forEach(function (s) {
+        g.fillText(s, ortala ? x + Math.round((en - genislik(s)) / 2) : x, Math.round(taban));
+        taban += adim;
+      });
+    }
+    function cizgi(x1, y1, x2, y2) {
+      var c = N(CIZGI), yari = Math.floor(c / 2);
+      g.fillRect(N(x1) - yari, N(y1) - yari, N(x2) - N(x1) + c, N(y2) - N(y1) + c);
+    }
+    function baslik(metin, x, y1, y2) {
+      yazi(N(BASLIK), true);
+      g.fillText(metin, N(x + YAN), N(y1) + Math.round((N(y2) - N(y1) + BUYUK_HARF * N(BASLIK)) / 2));
+    }
+    // Rahat okunur puntoda tek satıra sığan değer tek satırda kalır; sığmayan en çok enCokSatir satıra bölünür.
+    function deger(metin, x1, x2, y1, y2, enBuyukMm, enCokSatir, ortala) {
+      if (!metin) return;
+      var x = N(x1 + YAN), en = N(x2 - YAN) - x, y = N(y1 + DIKEY), boy = N(y2 - DIKEY) - y;
+      yazi(N(RAHAT), true);
+      var s = genislik(metin) <= en
+        ? sigdir(metin, en, boy, enBuyukMm, RAHAT, 1)
+        : sigdir(metin, en, boy, enBuyukMm, EN_KUCUK, enCokSatir);
+      satirlariYaz(s.satirlar, s.punto, x, en, y, boy, ortala);
+    }
+    function adres(metin, x1, x2, y1, y2) {
+      var satirlar = metin.split("\n").map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 0; }).slice(0, 3);
+      if (!satirlar.length) return;
+      var x = N(x1 + YAN), en = N(x2 - YAN) - x, y = N(y1 + DIKEY), boy = N(y2 - DIKEY) - y;
+      for (var punto = N(BASLIK); ; punto -= k) {
+        yazi(punto, true);
+        var sigar = (BUYUK_HARF + (satirlar.length - 1) * SATIR_ARALIGI) * punto <= boy;
+        satirlar.forEach(function (s) { if (genislik(s) > en) sigar = false; });
+        if (sigar || punto <= N(EN_KUCUK)) { satirlariYaz(satirlar, punto, x, en, y, boy, true); return; }
+      }
+    }
+
+    g.fillStyle = "#fff";
+    g.fillRect(0, 0, tuval.width, tuval.height);
+    g.textBaseline = "alphabetic";
+    g.fillStyle = "#000";
+
+    Y.forEach(function (y) { cizgi(X[0], y, y === Y[5] ? AX[3] : X[4], y); });
+    cizgi(X[0], Y[0], X[0], Y[6]);
+    cizgi(X[4], Y[0], X[4], Y[6]);
+    cizgi(X[2], Y[0], X[2], Y[4]);
+    cizgi(X[1], Y[2], X[1], Y[5]);
+    cizgi(X[3], Y[2], X[3], Y[4]);
+    cizgi(AX[2], Y[4], AX[2], Y[5]);
+    cizgi(AX[3], Y[4], AX[3], Y[6]);
+
+    baslik("Customer", X[0], Y[0], Y[1]);
+    baslik("Checked By", X[2], Y[0], Y[1]);
+    deger(e.musteri, X[0], X[2], Y[1], Y[2], 4.0, 2, false);
+    deger(e.kontrol, X[2], X[4], Y[1], Y[2], 4.0, 2, false);
+
+    baslik("Specification", X[0], Y[2], Y[3]);
+    baslik("Cost No", X[1], Y[2], Y[3]);
+    baslik("Qty.", X[2], Y[2], Y[3]);
+    baslik("Wgt.", X[3], Y[2], Y[3]);
+    deger(e.ozellik, X[0], X[1], Y[3], Y[4], 4.0, 2, false);
+    deger(e.costNo, X[1], X[2], Y[3], Y[4], 4.0, 3, false);
+    deger(e.adet, X[2], X[3], Y[3], Y[4], 5.0, 1, true);
+    deger(agirlikMetni(e.agirlik), X[3], X[4], Y[3], Y[4], 5.0, 1, true);
+
+    // Bu satırda başlık ile değer aynı hücrededir: başlık üstte, değer altında.
+    var ara = Y[4] + 6;
+    baslik("Size", AX[0], Y[4], ara + 0.5);
+    baslik("Track Name", AX[1], Y[4], ara + 0.5);
+    baslik("Production Date", AX[2], Y[4], ara + 0.5);
+    deger(e.olcu, AX[0], AX[1], ara, Y[5], 4.2, 2, false);
+    deger(e.track, AX[1], AX[2], ara, Y[5], 4.2, 2, false);
+    deger(e.tarih, AX[2], AX[3], ara, Y[5], 4.2, 2, false);
+
+    adres(e.adres, X[0], AX[3], Y[5], Y[6]);
+
+    // QR: modül tam sayıda nokta, hücrenin ortasında
+    var qr = Qr.uret(qrMetni, PAKET_QR_SURUM);
+    if (qr) {
+      var n = qr.length, modul = Math.max(1, Math.floor(PAKET_QR_ALAN / n)), boyut = n * modul;
+      var x0 = Math.floor((N(AX[3]) / k + N(X[4]) / k - boyut) / 2) * k, y0 = Math.floor((N(Y[4]) / k + N(Y[6]) / k - boyut) / 2) * k;
+      for (var qy = 0; qy < n; qy++)
+        for (var qx = 0; qx < n; qx++)
+          if (qr[qy][qx]) g.fillRect(x0 + qx * modul * k, y0 + qy * modul * k, modul * k, modul * k);
+    }
+  }
+
   // ------------------------------------------------------------------ sayfa
 
   function ekle(ust, etiket, sinif, metin) {
@@ -462,6 +628,7 @@
       ekle(bos, "span", "", "Bu sayfa, ürün etiketinin üzerindeki QR kod okutulduğunda etiketi gösterir.");
       return;
     }
+    if (e.paket) { paketGoster(icerik, e); return; }
     document.title = (e.urun || "Etiket") + " – Stark Mounting";
     var tuval = ekle(icerik, "canvas");
     tuval.setAttribute("role", "img");
@@ -484,6 +651,26 @@
     var logo = document.getElementById("logo");
     function yenidenCiz() { ciz(tuval, e, logo, location.href); }
     if (logo.complete) yenidenCiz(); else logo.addEventListener("load", yenidenCiz);
+    window.addEventListener("resize", yenidenCiz);
+  }
+
+  function paketGoster(icerik, e) {
+    document.title = (e.track || "Paket etiketi") + " – Stark Mounting";
+    var tuval = ekle(icerik, "canvas", "paket");
+    tuval.setAttribute("role", "img");
+    tuval.setAttribute("aria-label", "Paket etiketi: " + e.track);
+
+    var liste = ekle(icerik, "dl");
+    [["CUSTOMER", e.musteri], ["CHECKED BY", e.kontrol], ["SPECIFICATION", e.ozellik], ["COST NO", e.costNo], ["QTY.", e.adet],
+     ["WGT.", agirlikMetni(e.agirlik)], ["SIZE", e.olcu], ["TRACK NAME", e.track], ["PRODUCTION DATE", e.tarih]].forEach(function (s) {
+      var d = ekle(liste, "div");
+      ekle(d, "dt", "", s[0]);
+      ekle(d, "dd", "", s[1] || "—");
+    });
+    ekle(icerik, "p", "", "Bu sayfa paket etiketinin üzerindeki QR koddan açılmıştır; bilgiler etiketin basıldığı andaki hâlidir.");
+
+    function yenidenCiz() { cizPaket(tuval, e, location.href); }
+    yenidenCiz();
     window.addEventListener("resize", yenidenCiz);
   }
 
