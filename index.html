@@ -9,7 +9,7 @@
 <!--
   Etiket üzerindeki QR kod okutulunca açılan sayfa. Etiket bilgileri sunucuda değil, adresin "#" sonrasındaki
   bölümünde durur ve etiket burada yeniden çizilir:
-  - 80 x 40 ürün etiketi: 1, tür, ürün, proje, adet, malzeme; satır satır, UTF-8, base64url.
+  - 80 x 40 ürün etiketi: 1, tür, ürün, proje, adet, malzeme ve varsa bobin no; satır satır, UTF-8, base64url.
   - 150 x 100 paket etiketi: 2, customer, checked by, specification, cost no, qty., wgt., size, track name,
     production date, alt satır (boşsa varsayılan adres); "~" ile ayrılmış, boşluk "+", öbürleri %XX.
   Çizim, Etiket Üretim uygulamasındaki kaynak\Cizim.cs, kaynak\PaketCizim.cs ve kaynak\Qr.cs dosyalarının
@@ -47,7 +47,8 @@
 
   var TURLER = [["YARI MAMÜL", "KESİLMİŞ ÜRÜN"], ["MAMÜL", "BÜKÜLMÜŞ ÜRÜN"], ["FITTINGS", ""]];
   var NOKTA_MM = 8, BUYUK_HARF = 0.716, SATIR_ARALIGI = 1.1, QR_SURUM = 8, QR_ALAN = 25 * NOKTA_MM;
-  var PAKET_QR_SURUM = 12, PAKET_QR_ALAN = 26 * NOKTA_MM;
+  // Paket etiketi: kısa içerik sürüm 8'e (4 nokta/modül), sığmayan sürüm 12'den başlar (3 nokta/modül).
+  var PAKET_KISA_SURUM = 8, PAKET_QR_SURUM = 12, PAKET_QR_ALAN = 26 * NOKTA_MM;
   var VARSAYILAN_ADRES = "STARK-MOUNTİNG Yazıbaşı Mh. Yazıbaşı İzmir Cad.\nNo:31/1-2 Torbalı/İZMİR";
 
   // ------------------------------------------------------------------ adresteki veri
@@ -64,8 +65,15 @@
       var a = new TextDecoder("utf-8").decode(bayt).split("\n");
       var tur = parseInt(a[1], 10);
       if (a[0] !== "1" || a.length < 5 || !(tur >= 0 && tur <= 2)) return null;
-      return { tur: tur, urun: a[2] || "", proje: a[3] || "", adet: a[4] || "", malzeme: tur === 2 ? "" : a[5] || "" };
+      return { tur: tur, urun: a[2] || "", proje: a[3] || "", adet: a[4] || "", malzeme: tur === 2 ? "" : a[5] || "",
+               bobin: tur === 2 ? "" : a[6] || "" };
     } catch (hata) { return null; }
+  }
+
+  // "CGU0986 - I5A128314A7B" → coil kodu ve parti kodu; ayraç yoksa tek satır (Cizim.BobinSatirlari).
+  function bobinSatirlari(b) {
+    var i = b.indexOf(" - ");
+    return i > 0 && i + 3 < b.length ? [b.substring(0, i).trim(), b.substring(i + 3).trim()] : [b];
   }
 
   function paketCoz(h) {
@@ -311,7 +319,7 @@
       return matris(v, e, duzeltmeEkle(kod, v, e));
     }
 
-    return { uret: uret };
+    return { uret: uret, gereken: gereken };
   })();
 
   // ------------------------------------------------------------------ etiket çizimi (80 x 40 mm, 8 nokta/mm)
@@ -448,7 +456,16 @@
     baslik("ÜRÜN ADI", sol, N(11.9));
     blok(e.urun, sol, N(14.5), metinEn, N(8.6), 6.4, 2.6, 2, 0.3);
     baslik("PROJE", sol, N(24.5));
-    blok(e.proje, sol, N(26.7), metinEn, N(2.75), 3.8, 2.2, 1, 1.0);
+    if (e.bobin) {
+      // bobin varsa proje satırı ikiye bölünür: solda proje, sağda iki satır halinde coil ve parti kodu ("CGU0986 - I5A128314A7B")
+      blok(e.proje, sol, N(26.7), N(28.5), N(2.75), 3.8, 2.0, 1, 1.0);
+      var kod = bobinSatirlari(e.bobin);
+      baslik(kod.length > 1 ? "COIL / PARTİ" : "BOBİN", N(32.2), N(24.5));
+      blok(kod[0], N(32.2), N(26.6), N(19.8), N(2.6), kod.length > 1 ? 3.0 : 3.8, 1.8, 1, 1.0);
+      if (kod.length > 1) blok(kod[1], N(32.2), N(29.6), N(19.8), N(2.6), 3.0, 1.8, 1, 1.0);
+    } else {
+      blok(e.proje, sol, N(26.7), metinEn, N(2.75), 3.8, 2.2, 1, 1.0);
+    }
     baslik("ADET", sol, N(31.2));
     if (e.tur === 2) {
       blok(e.adet, sol, N(33.25), metinEn, N(3.75), 5.2, 2.6, 1, 1.0);
@@ -599,7 +616,8 @@
     adres(e.adres, X[0], AX[3], Y[5], Y[6]);
 
     // QR: modül tam sayıda nokta, hücrenin ortasında
-    var qr = Qr.uret(qrMetni, PAKET_QR_SURUM);
+    var kisa = Qr.gereken(new TextEncoder().encode(qrMetni).length, 0);
+    var qr = Qr.uret(qrMetni, kisa > 0 && kisa <= PAKET_KISA_SURUM ? PAKET_KISA_SURUM : PAKET_QR_SURUM);
     if (qr) {
       var n = qr.length, modul = Math.max(1, Math.floor(PAKET_QR_ALAN / n)), boyut = n * modul;
       var x0 = Math.floor((N(AX[3]) / k + N(X[4]) / k - boyut) / 2) * k, y0 = Math.floor((N(Y[4]) / k + N(Y[6]) / k - boyut) / 2) * k;
@@ -646,6 +664,11 @@
     satir("PROJE", e.proje);
     satir("ADET", e.adet);
     if (e.tur !== 2) satir("MALZEME", e.malzeme);
+    if (e.bobin) {
+      var kod = bobinSatirlari(e.bobin);
+      if (kod.length > 1) { satir("COIL KODU", kod[0]); satir("PARTİ KODU", kod[1]); }
+      else satir("BOBİN", e.bobin);
+    }
     ekle(icerik, "p", "", "Bu sayfa etiketin üzerindeki QR koddan açılmıştır; bilgiler etiketin basıldığı andaki hâlidir.");
 
     var logo = document.getElementById("logo");
